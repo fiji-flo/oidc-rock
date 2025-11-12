@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OIDC Test Client</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .config-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
+
+        .config-section h3 {
+            color: #495057;
+            margin-top: 0;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-right: 10px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #545b62;
+        }
+
+        .info-box {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        .error-box {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .step {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+
+        .step h4 {
+            margin-top: 0;
+            color: #007bff;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 OIDC Test Client</h1>
+        <p>Test your OIDC Rock provider with this interactive client.</p>
+
+        <div class="config-section">
+            <h3>⚙️ Configuration</h3>
+            <div class="form-group">
+                <label for="issuer">Issuer URL:</label>
+                <input type="url" id="issuer" value="http://127.0.0.1:3080" placeholder="http://127.0.0.1:3080">
+            </div>
+
+            <div class="form-group">
+                <label for="client_id">Client ID:</label>
+                <input type="text" id="client_id" value="test-client" placeholder="test-client">
+            </div>
+
+            <div class="form-group">
+                <label for="client_secret">Client Secret:</label>
+                <input type="password" id="client_secret" value="test-secret" placeholder="test-secret">
+            </div>
+
+            <div class="form-group">
+                <label for="redirect_uri">Redirect URI:</label>
+                <input type="url" id="redirect_uri" value="" placeholder="Will be auto-set to current page">
+            </div>
+
+            <div class="form-group">
+                <label for="scopes">Scopes:</label>
+                <input type="text" id="scopes" value="openid profile email" placeholder="openid profile email">
+            </div>
+
+            <button onclick="loadDiscovery()">🔍 Load Discovery Document</button>
+            <button onclick="clearAll()" class="secondary">🗑️ Clear All</button>
+        </div>
+
+        <div id="discovery-section" class="config-section hidden">
+            <h3>📋 Discovery Document</h3>
+            <div id="discovery-content" class="token-display"></div>
+        </div>
+
+        <div class="config-section">
+            <h3>🚀 OIDC Flow</h3>
+
+            <div class="step">
+                <h4>Step 1: Discovery</h4>
+                <p>Load the OpenID Connect discovery document to get endpoints.</p>
+                <div id="discovery-status"></div>
+            </div>
+
+            <div class="step">
+                <h4>Step 2: Authorization</h4>
+                <p>Start the authorization code flow by redirecting to the authorization endpoint.</p>
+                <button onclick="startAuth()" id="auth-button" disabled>🔐 Start Authorization</button>
+                <div id="auth-status"></div>
+            </div>
+
+            <div class="step">
+                <h4>Step 3: Handle Callback</h4>
+                <p>After login, you'll be redirected back here with an authorization code.</p>
+                <div id="callback-status"></div>
+            </div>
+
+            <div class="step">
+                <h4>Step 4: Token Exchange</h4>
+                <p>Exchange the authorization code for tokens.</p>
+                <button onclick="exchangeToken()" id="token-button" disabled>🎫 Exchange Token</button>
+                <div id="token-status"></div>
+            </div>
+        </div>
+
+        <div id="tokens-section" class="config-section hidden">
+            <h3>🎫 Tokens</h3>
+            <div id="tokens-content"></div>
+        </div>
+
+        <div id="userinfo-section" class="config-section hidden">
+            <h3>👤 User Info</h3>
+            <button onclick="getUserInfo()">📋 Get User Info</button>
+            <div id="userinfo-content" class="token-display"></div>
+        </div>
+
+        <div class="config-section">
+            <h3>ℹ️ Instructions</h3>
+            <ol>
+                <li><strong>Configure:</strong> Update the settings above if your OIDC provider is running on different settings.</li>
+                <li><strong>Discovery:</strong> Click "Load Discovery Document" to fetch the OIDC configuration.</li>
+                <li><strong>Authorize:</strong> Click "Start Authorization" to begin the login flow.</li>
+                <li><strong>Login:</strong> You'll be redirected to login. Use <code>testuser</code> / <code>password</code>.</li>
+                <li><strong>Callback:</strong> After login, you'll return here with an authorization code.</li>
+                <li><strong>Tokens:</strong> Click "Exchange Token" to get your access token and ID token.</li>
+                <li><strong>UserInfo:</strong> Use the access token to fetch user information.</li>
+            </ol>
+
+            <div class="info-box">
+                <strong></strong>💡 Tip:</strong> Open your browser's developer tools to see the network requests and responses.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let discoveryDoc = null;
+        let authCode = null;
+        let accessToken = null;
+        let state = null;
+
+        // Set redirect URI to current page on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentUrl = window.location.origin + window.location.pathname;
+            document.getElementById('redirect_uri').value = currentUrl;
+
+            // Check if we're coming back from authorization
+            checkForCallback();
+        });
+
+        function showStatus(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${isError ? 'error' : 'success'}">${message}</div>`;
+        }
+
+        function clearStatus(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        async function loadDiscovery() {
+            const issuer = document.getElementById('issuer').value;
+            const discoveryUrl = issuer + '/.well-known/openid-configuration';
+
+            clearStatus('discovery-status');
+
+            try {
+                const response = await fetch(discoveryUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                discoveryDoc = await response.json();
+
+                document.getElementById('discovery-content').textContent = JSON.stringify(discoveryDoc, null, 2);
+                document.getElementById('discovery-section').classList.remove('hidden');
+                document.getElementById('auth-button').disabled = false;
+
+                showStatus('discovery-status', '✅ Discovery document loaded successfully!');
+
+            } catch (error) {
+                showStatus('discovery-status', `❌ Failed to load discovery: ${error.message}`, true);
+            }
+        }
+
+        function generateState() {
+            return 'state-' + Math.random().toString(36).substring(2, 15);
+        }
+
+        function startAuth() {
+            if (!discoveryDoc) {
+                showStatus('auth-status', '❌ Please load discovery document first', true);
+                return;
+            }
+
+            state = generateState();
+            const authUrl = new URL(discoveryDoc.authorization_endpoint);
+
+            authUrl.searchParams.set('client_id', document.getElementById('client_id').value);
+            authUrl.searchParams.set('redirect_uri', document.getElementById('redirect_uri').value);
+            authUrl.searchParams.set('response_type', 'code');
+            authUrl.searchParams.set('scope', document.getElementById('scopes').value);
+            authUrl.searchParams.set('state', state);
+
+            showStatus('auth-status', '🔄 Redirecting to authorization endpoint...');
+
+            // Store state in sessionStorage for validation
+            sessionStorage.setItem('oauth_state', state);
+
+            // Redirect to authorization endpoint
+            window.location.href = authUrl.toString();
+        }
+
+        function checkForCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const returnedState = urlParams.get('state');
+            const error = urlParams.get('error');
+
+            if (error) {
+                showStatus('callback-status', `❌ Authorization error: ${error}`, true);
+                const errorDescription = urlParams.get('error_description');
+                if (errorDescription) {
+                    showStatus('callback-status', `❌ ${error}: ${errorDescription}`, true);
+                }
+                return;
+            }
+
+            if (code) {
+                const storedState = sessionStorage.getItem('oauth_state');
+
+                if (storedState !== returnedState) {
+                    showStatus('callback-status', '❌ Invalid state parameter - possible CSRF attack', true);
+                    return;
+                }
+
+                authCode = code;
+                showStatus('callback-status', `✅ Authorization code received: ${code.substring(0, 20)}...`);
+                document.getElementById('token-button').disabled = false;
+
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                sessionStorage.removeItem('oauth_state');
+            }
+        }
+
+        async function exchangeToken() {
+            if (!authCode) {
+                showStatus('token-status', '❌ No authorization code available', true);
+                return;
+            }
+
+            if (!discoveryDoc) {
+                showStatus('token-status', '❌ Discovery document not loaded', true);
+                return;
+            }
+
+            const tokenData = {
+                grant_type: 'authorization_code',
+                code: authCode,
+                redirect_uri: document.getElementById('redirect_uri').value,
+                client_id: document.getElementById('client_id').value,
+                client_secret: document.getElementById('client_secret').value
+            };
+
+            try {
+                const response = await fetch(discoveryDoc.token_endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams(tokenData)
+                });
+
+                const responseData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(responseData.error_description || responseData.error || 'Token exchange failed');
+                }
+
+                accessToken = responseData.access_token;
+
+                // Display tokens
+                const tokensHtml = `
+                    <h4>Access Token:</h4>
+                    <div class="token-display">${responseData.access_token}</div>
+
+                    ${responseData.id_token ? `
+                    <h4>ID Token:</h4>
+                    <div class="token-display">${responseData.id_token}</div>
+
+                    <h4>Decoded ID Token:</h4>
+                    <div class="token-display">${JSON.stringify(parseJWT(responseData.id_token), null, 2)}</div>
+                    ` : ''}
+
+                    ${responseData.refresh_token ? `
+                    <h4>Refresh Token:</h4>
+                    <div class="token-display">${responseData.refresh_token}</div>
+                    ` : ''}
+
+                    <h4>Full Response:</h4>
+                    <div class="token-display">${JSON.stringify(responseData, null, 2)}</div>
+                `;
+
+                document.getElementById('tokens-content').innerHTML = tokensHtml;
+                document.getElementById('tokens-section').classList.remove('hidden');
+                document.getElementById('userinfo-section').classList.remove('hidden');
+
+                showStatus('token-status', '✅ Tokens received successfully!');
+
+            } catch (error) {
+                showStatus('token-status', `❌ Token exchange failed: ${error.message}`, true);
+            }
+        }
+
+        async function getUserInfo() {
+            if (!accessToken) {
+                showStatus('userinfo-status', '❌ No access token available', true);
+                return;
+            }
+
+            if (!discoveryDoc) {
+                showStatus('userinfo-status', '❌ Discovery document not loaded', true);
+                return;
+            }
+
+            try {
+                const response = await fetch(discoveryDoc.userinfo_endpoint, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                const userInfo = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(userInfo.error_description || userInfo.error || 'UserInfo request failed');
+                }
+
+                document.getElementById('userinfo-content').textContent = JSON.stringify(userInfo, null, 2);
+
+            } catch (error) {
+                document.getElementById('userinfo-content').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function parseJWT(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+
+                return JSON.parse(jsonPayload);
+            } catch (error) {
+                return { error: 'Failed to decode JWT', message: error.message };
+            }
+        }
+
+        function clearAll() {
+            // Clear all status messages
+            ['discovery-status', 'auth-status', 'callback-status', 'token-status'].forEach(id => {
+                clearStatus(id);
+            });
+
+            // Hide sections
+            ['discovery-section', 'tokens-section', 'userinfo-section'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+
+            // Clear content
+            document.getElementById('discovery-content').textContent = '';
+            document.getElementById('tokens-content').innerHTML = '';
+            document.getElementById('userinfo-content').textContent = '';
+
+            // Reset variables
+            discoveryDoc = null;
+            authCode = null;
+            accessToken = null;
+            state = null;
+
+            // Disable buttons
+            document.getElementById('auth-button').disabled = true;
+            document.getElementById('token-button').disabled = true;
+
+            // Clear session storage
+            sessionStorage.removeItem('oauth_state');
+        }
+    </script>
+</body>
+</html>
