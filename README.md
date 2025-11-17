@@ -6,6 +6,7 @@ A lightweight OpenID Connect (OIDC) provider built with Rust and Axum, designed 
 
 - ✅ OpenID Connect Discovery endpoint
 - ✅ Authorization Code flow with nonce support
+- ✅ PKCE (Proof Key for Code Exchange) - Both S256 and plain methods
 - ✅ JWT ID tokens and Access tokens with comprehensive claims
 - ✅ UserInfo endpoint with Bearer token authentication
 - ✅ Refresh Token grant implementation
@@ -15,9 +16,10 @@ A lightweight OpenID Connect (OIDC) provider built with Rust and Axum, designed 
 - ✅ YAML-based configuration
 - ✅ Multiple users and clients support
 - ✅ Custom claims support
-- ✅ Simple web-based login interface
+- ✅ Simple web-based login interface with PKCE support
 - ✅ CORS support for SPA testing
-- ✅ Comprehensive test suite with 16 integration tests
+- ✅ Comprehensive test suite with 21 integration tests
+- ✅ PKCE helper utility for testing
 
 ## Quick Start
 
@@ -113,138 +115,13 @@ clients:
 
 | Endpoint | URL | Description |
 |----------|-----|-------------|
-| Discovery | `/.well-known/openid-configuration` | OIDC discovery document |
+| Discovery | `/.well-known/openid-configuration` | OIDC discovery document with PKCE methods |
 | JWKS | `/.well-known/jwks.json` | JSON Web Key Set |
-| Authorization | `/auth` | Authorization endpoint for login |
+| Authorization | `/auth` | Authorization endpoint with PKCE support |
 | Token | `/token` | Token exchange endpoint (authorization_code, refresh_token) |
 | UserInfo | `/userinfo` | User information endpoint with Bearer auth |
 | Logout | `/logout` | RP-Initiated Logout endpoint |
-| Login | `/login` | Web login form (testing only) |
-
-## Testing the Provider
-
-### Using curl
-
-1. **Get Discovery Document**:
-```bash
-curl http://127.0.0.1:3080/.well-known/openid-configuration | jq
-```
-
-2. **Start Authorization Flow**:
-```bash
-# Open in browser or use curl to get redirect
-curl -v "http://127.0.0.1:3080/auth?client_id=test-client&redirect_uri=http://localhost:8080/callback&response_type=code&scope=openid%20profile%20email&state=test-state"
-```
-
-3. **Exchange Code for Tokens**:
-```bash
-curl -X POST http://127.0.0.1:3080/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=authorization_code&code=YOUR_CODE&redirect_uri=http://localhost:8080/callback&client_id=test-client&client_secret=test-secret"
-
-4. **Get User Information**:
-```bash
-curl http://127.0.0.1:3080/userinfo \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-5. **Refresh Tokens**:
-```bash
-curl -X POST http://127.0.0.1:3080/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token&refresh_token=YOUR_REFRESH_TOKEN&client_id=test-client&client_secret=test-secret"
-```
-
-### Integration with Applications
-
-The provider works with any OIDC-compatible application. Here are some common configurations:
-
-#### For Web Applications
-- **Issuer**: `http://127.0.0.1:3080`
-- **Client ID**: `test-client`
-- **Client Secret**: `test-secret`
-- **Redirect URI**: `http://localhost:8080/callback`
-
-#### For SPAs (Single Page Applications)
-- **Issuer**: `http://127.0.0.1:3080`
-- **Client ID**: `spa-client`
-- **No Client Secret** (public client)
-- **Redirect URI**: `http://localhost:3080/callback`
-
-## Default Test Data
-
-### Users
-| Username | Password | Email | Name |
-|----------|----------|-------|------|
-| testuser | password | test@example.com | Test User |
-| alice | alice123 | alice@example.com | Alice Johnson |
-| bob | bob123 | bob@example.com | Bob Smith |
-
-### Clients
-| Client ID | Client Secret | Redirect URI |
-|-----------|---------------|--------------|
-| test-client | test-secret | http://localhost:8080/callback |
-| spa-client | (none) | http://localhost:3080/callback |
-| mobile-app | mobile-secret-key | myapp://auth/callback |
-
-## Security Notes
-
-⚠️ **This is a test provider only!** Do not use in production:
-
-- Passwords are stored in plaintext in the config file
-- Simple HMAC-based JWT signing
-- No rate limiting or security hardening
-- In-memory storage (data lost on restart)
-- Basic session management
-
-## Development
-
-### Running Tests
-
-```bash
-# Run all tests
-cargo test
-
-# Run only unit tests
-cargo test --lib
-
-# Run integration tests
-cargo test --test integration_tests
-```
-
-### Project Structure
-
-```
-src/
-├── main.rs          # Application entry point
-├── config.rs        # YAML configuration handling
-├── crypto.rs        # JWT and cryptographic utilities
-├── handlers.rs      # HTTP request handlers
-├── models.rs        # Data models and structures
-└── storage.rs       # In-memory storage implementation
-```
-
-### Adding Features
-
-The codebase is designed to be easily extensible:
-
-- Add new endpoints in `handlers.rs`
-- Extend configuration in `config.rs`  
-- Add new token types or claims in `models.rs`
-- Enhance storage capabilities in `storage.rs`
-
-### Current Implementation Status
-
-✅ **All TODOs Completed**: The implementation includes all major OIDC features:
-- Full UserInfo endpoint with Bearer token validation
-- Complete refresh token grant implementation  
-- Nonce handling throughout the authorization flow
-- Comprehensive logout with session management
-- JWKS endpoint for key discovery
-- Automatic token cleanup and maintenance
-- 16 comprehensive integration tests
-
-See `IMPLEMENTATION.md` for detailed implementation notes.
+| Login | `/login` | Web login form with PKCE parameters |
 
 ## License
 
