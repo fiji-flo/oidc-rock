@@ -1,20 +1,20 @@
 use axum::{
+    Form,
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json, Redirect},
-    Form,
 };
 use chrono::Utc;
 
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
-use crate::crypto::JwtManager;
+use crate::AppState;
+use crate::crypto::{JwtManager, verify_code_challenge};
 use crate::models::{
     AccessTokenClaims, AuthorizeRequest, DiscoveryDocument, ErrorResponse, IdTokenClaims,
     LoginRequest, TokenRequest, TokenResponse, UserInfoResponse,
 };
-use crate::AppState;
 
 // Index page - simple info about the OIDC provider
 pub async fn index(State(state): State<AppState>) -> impl IntoResponse {
@@ -113,6 +113,7 @@ pub async fn discovery(State(state): State<AppState>) -> impl IntoResponse {
             "email_verified".to_string(),
             "picture".to_string(),
         ],
+        code_challenge_methods_supported: vec!["S256".to_string(), "plain".to_string()],
     };
 
     Json(discovery)
@@ -167,6 +168,25 @@ pub async fn authorize(
         login_url.push_str(&format!("&nonce={}", urlencoding::encode(nonce)));
     }
 
+    // Add login_hint if present
+    if let Some(login_hint) = &params.login_hint {
+        login_url.push_str(&format!("&login_hint={}", urlencoding::encode(login_hint)));
+    }
+
+    // Add PKCE parameters if present
+    if let Some(challenge) = &params.code_challenge {
+        login_url.push_str(&format!(
+            "&code_challenge={}",
+            urlencoding::encode(challenge)
+        ));
+    }
+    if let Some(method) = &params.code_challenge_method {
+        login_url.push_str(&format!(
+            "&code_challenge_method={}",
+            urlencoding::encode(method)
+        ));
+    }
+
     Redirect::to(&login_url).into_response()
 }
 
@@ -176,6 +196,7 @@ pub async fn login_form(
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let client_id = params.get("client_id").unwrap_or(&"".to_string()).clone();
+    let login_hint = params.get("login_hint");
     let redirect_uri = params
         .get("redirect_uri")
         .unwrap_or(&"".to_string())
@@ -183,6 +204,14 @@ pub async fn login_form(
     let scope = params.get("scope").unwrap_or(&"".to_string()).clone();
     let state = params.get("state").unwrap_or(&"".to_string()).clone();
     let nonce = params.get("nonce").unwrap_or(&"".to_string()).clone();
+    let code_challenge = params
+        .get("code_challenge")
+        .unwrap_or(&"".to_string())
+        .clone();
+    let code_challenge_method = params
+        .get("code_challenge_method")
+        .unwrap_or(&"".to_string())
+        .clone();
 
     let html = format!(
         r#"
@@ -213,8 +242,10 @@ pub async fn login_form(
         <input type="hidden" name="scope" value="{}">
         <input type="hidden" name="state" value="{}">
         <input type="hidden" name="nonce" value="{}">
+        <input type="hidden" name="code_challenge" value="{}">
+        <input type="hidden" name="code_challenge_method" value="{}">
 
-        <input type="text" name="username" placeholder="Username" required>
+        <input type="text" name="username" placeholder="Username" value="{}" required>
         <input type="password" name="password" placeholder="Password" required>
         <button type="submit">Login</button>
     </form>
@@ -225,7 +256,16 @@ pub async fn login_form(
 </body>
 </html>
 "#,
-        client_id, scope, client_id, redirect_uri, scope, state, nonce
+        client_id,
+        scope,
+        client_id,
+        redirect_uri,
+        scope,
+        state,
+        nonce,
+        code_challenge,
+        code_challenge_method,
+        login_hint.map(|s| s.as_str()).unwrap_or_default()
     );
 
     Html(html)
@@ -276,8 +316,8 @@ pub async fn login(
             &login_request.username,
             redirect_uri,
             scope,
-            None,
-            None,
+            login_request.code_challenge.clone(),
+            login_request.code_challenge_method.clone(),
             login_request.nonce.clone(),
         )
         .await
@@ -353,7 +393,7 @@ async fn handle_authorization_code_grant(
                 error_description: Some("Missing authorization code".to_string()),
                 error_uri: None,
             })
-            .into_response()
+            .into_response();
         }
     };
 
@@ -366,7 +406,7 @@ async fn handle_authorization_code_grant(
                 error_description: Some("Invalid or expired authorization code".to_string()),
                 error_uri: None,
             })
-            .into_response()
+            .into_response();
         }
     };
 
@@ -384,7 +424,7 @@ async fn handle_authorization_code_grant(
                 error_description: Some("Unknown client".to_string()),
                 error_uri: None,
             })
-            .into_response()
+            .into_response();
         }
     };
 
@@ -414,8 +454,41 @@ async fn handle_authorization_code_grant(
         }
     }
 
+    // Validate PKCE if code challenge was used
+    if let Some(challenge) = &auth_code.code_challenge {
+        let verifier = match &token_request.code_verifier {
+            Some(verifier) => verifier,
+            None => {
+                return Json(ErrorResponse {
+                    error: "invalid_request".to_string(),
+                    error_description: Some(
+                        "code_verifier is required when code_challenge was used".to_string(),
+                    ),
+                    error_uri: None,
+                })
+                .into_response();
+            }
+        };
+
+        let method = auth_code
+            .code_challenge_method
+            .as_deref()
+            .unwrap_or("plain");
+
+        if !verify_code_challenge(verifier, challenge, method) {
+            return Json(ErrorResponse {
+                error: "invalid_grant".to_string(),
+                error_description: Some("PKCE verification failed".to_string()),
+                error_uri: None,
+            })
+            .into_response();
+        }
+
+        info!("PKCE verification successful for client: {}", client_id);
+    }
+
     // Create tokens
-    let jwt_manager = JwtManager::new();
+    let jwt_manager = JwtManager::default();
     let expires_in = state.config.oidc.token_expiry_seconds;
 
     // Create access token
@@ -621,7 +694,7 @@ async fn handle_refresh_token_grant(
     }
 
     // Create new tokens
-    let jwt_manager = JwtManager::new();
+    let jwt_manager = JwtManager::default();
     let expires_in = state.config.oidc.token_expiry_seconds;
 
     // Create new access token
@@ -774,7 +847,7 @@ pub async fn userinfo(State(state): State<AppState>, headers: HeaderMap) -> impl
     let access_token = &auth_header[7..]; // Remove "Bearer " prefix
 
     // Validate JWT token
-    let jwt_manager = JwtManager::new();
+    let jwt_manager = JwtManager::default();
     let token_claims = match jwt_manager.validate_access_token(access_token) {
         Ok(claims) => claims,
         Err(_) => {
@@ -859,7 +932,7 @@ pub async fn logout(
 
     // If we have an ID token hint, validate and extract session info
     if let Some(token) = id_token_hint {
-        let jwt_manager = JwtManager::new();
+        let jwt_manager = JwtManager::default();
         if let Ok(claims) = jwt_manager.validate_id_token(token) {
             // Token is valid, we could use claims.sub to identify the user
             info!("Logging out user: {}", claims.sub);
@@ -933,7 +1006,7 @@ pub async fn logout(
 
 // JWKS endpoint
 pub async fn jwks() -> impl IntoResponse {
-    let jwt_manager = JwtManager::new();
+    let jwt_manager = JwtManager::default();
     let jwks = jwt_manager.get_jwks();
     Json(jwks)
 }

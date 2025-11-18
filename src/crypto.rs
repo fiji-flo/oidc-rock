@@ -55,14 +55,16 @@ pub struct JwtManager {
     decoding_key: DecodingKey,
 }
 
-impl JwtManager {
-    pub fn new() -> Self {
+impl Default for JwtManager {
+    fn default() -> Self {
         Self {
             encoding_key: EncodingKey::from_rsa_pem(PRIVATE_KEY.as_bytes()).unwrap(),
             decoding_key: DecodingKey::from_rsa_pem(PUBLIC_KEY.as_bytes()).unwrap(),
         }
     }
+}
 
+impl JwtManager {
     pub fn create_id_token(&self, claims: IdTokenClaims) -> Result<String> {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(KID.to_string());
@@ -168,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_jwt_creation_and_validation() {
-        let manager = JwtManager::new();
+        let manager = JwtManager::default();
 
         let id_claims = IdTokenClaims {
             iss: "test-issuer".to_string(),

@@ -65,6 +65,7 @@ pub struct DiscoveryDocument {
     pub id_token_signing_alg_values_supported: Vec<String>,
     pub token_endpoint_auth_methods_supported: Vec<String>,
     pub claims_supported: Vec<String>,
+    pub code_challenge_methods_supported: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,6 +138,9 @@ pub struct AuthorizeRequest {
     pub scope: Option<String>,
     pub state: Option<String>,
     pub nonce: Option<String>,
+    pub code_challenge: Option<String>,
+    pub code_challenge_method: Option<String>,
+    pub login_hint: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -147,6 +151,7 @@ pub struct TokenRequest {
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
     pub refresh_token: Option<String>,
+    pub code_verifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,4 +161,6 @@ pub struct LoginRequest {
     pub redirect_uri: Option<String>,
     pub state: Option<String>,
     pub nonce: Option<String>,
+    pub code_challenge: Option<String>,
+    pub code_challenge_method: Option<String>,
 }

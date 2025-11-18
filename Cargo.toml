@@ -1,7 +1,9 @@
 [package]
 name = "oidc-rock"
-version = "0.1.0"
-edition = "2021"
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+authors = ["Florian Dieminger <me@fiji-flo.de>"]
 
 [dependencies]
 axum = "0.8"
@@ -24,4 +26,4 @@ url = "2"
 urlencoding = "2.1"
 
 [dev-dependencies]
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.5", features = ["util"] }

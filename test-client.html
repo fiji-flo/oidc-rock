@@ -194,6 +194,20 @@
                 <input type="text" id="scopes" value="openid profile email" placeholder="openid profile email">
             </div>
 
+            <div class="form-group">
+                <label for="use_pkce">
+                    <input type="checkbox" id="use_pkce" checked> Use PKCE (Proof Key for Code Exchange)
+                </label>
+            </div>
+
+            <div class="form-group" id="pkce_method_group">
+                <label for="pkce_method">PKCE Method:</label>
+                <select id="pkce_method">
+                    <option value="S256">S256 (SHA256, Recommended)</option>
+                    <option value="plain">plain</option>
+                </select>
+            </div>
+
             <button onclick="loadDiscovery()">🔍 Load Discovery Document</button>
             <button onclick="clearAll()" class="secondary">🗑️ Clear All</button>
         </div>
@@ -267,6 +281,7 @@
         let authCode = null;
         let accessToken = null;
         let state = null;
+        let codeVerifier = null;
 
         // Set redirect URI to current page on load
         document.addEventListener('DOMContentLoaded', function() {
@@ -276,6 +291,26 @@
             // Check if we're coming back from authorization
             checkForCallback();
         });
+
+        // PKCE helper functions
+        function generateCodeVerifier() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            return btoa(String.fromCharCode.apply(null, array))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        async function generateCodeChallenge(verifier) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(verifier);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
 
         function showStatus(elementId, message, isError = false) {
             const element = document.getElementById(elementId);
@@ -315,7 +350,7 @@
             return 'state-' + Math.random().toString(36).substring(2, 15);
         }
 
-        function startAuth() {
+        async function startAuth() {
             if (!discoveryDoc) {
                 showStatus('auth-status', '❌ Please load discovery document first', true);
                 return;
@@ -330,7 +365,29 @@
             authUrl.searchParams.set('scope', document.getElementById('scopes').value);
             authUrl.searchParams.set('state', state);
 
-            showStatus('auth-status', '🔄 Redirecting to authorization endpoint...');
+            // Add PKCE parameters if enabled
+            const usePkce = document.getElementById('use_pkce').checked;
+            if (usePkce) {
+                codeVerifier = generateCodeVerifier();
+                const method = document.getElementById('pkce_method').value;
+
+                let codeChallenge;
+                if (method === 'S256') {
+                    codeChallenge = await generateCodeChallenge(codeVerifier);
+                } else {
+                    codeChallenge = codeVerifier;
+                }
+
+                authUrl.searchParams.set('code_challenge', codeChallenge);
+                authUrl.searchParams.set('code_challenge_method', method);
+
+                // Store for token exchange
+                sessionStorage.setItem('code_verifier', codeVerifier);
+
+                showStatus('auth-status', '🔄 Using PKCE - Redirecting to authorization endpoint...');
+            } else {
+                showStatus('auth-status', '🔄 Redirecting to authorization endpoint...');
+            }
 
             // Store state in sessionStorage for validation
             sessionStorage.setItem('oauth_state', state);
@@ -391,6 +448,12 @@
                 client_secret: document.getElementById('client_secret').value
             };
 
+            // Add PKCE code verifier if it was used
+            const storedVerifier = sessionStorage.getItem('code_verifier');
+            if (storedVerifier) {
+                tokenData.code_verifier = storedVerifier;
+            }
+
             try {
                 const response = await fetch(discoveryDoc.token_endpoint, {
                     method: 'POST',
@@ -435,6 +498,9 @@
                 document.getElementById('userinfo-section').classList.remove('hidden');
 
                 showStatus('token-status', '✅ Tokens received successfully!');
+
+                // Clean up PKCE verifier
+                sessionStorage.removeItem('code_verifier');
 
             } catch (error) {
                 showStatus('token-status', `❌ Token exchange failed: ${error.message}`, true);
@@ -514,6 +580,7 @@
 
             // Clear session storage
             sessionStorage.removeItem('oauth_state');
+            sessionStorage.removeItem('code_verifier');
         }
     </script>
 </body>
