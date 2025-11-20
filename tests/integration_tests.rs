@@ -1,9 +1,9 @@
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
-    Router,
 };
-use oidc_rock::{config::Config, storage::InMemoryStorage, AppState};
+use oidc_rock::{AppState, config::Config, storage::InMemoryStorage};
 use serde_json::Value;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -87,10 +87,12 @@ async fn test_discovery_endpoint() {
         discovery["userinfo_endpoint"],
         "http://127.0.0.1:3080/userinfo"
     );
-    assert!(discovery["scopes_supported"]
-        .as_array()
-        .unwrap()
-        .contains(&Value::String("openid".to_string())));
+    assert!(
+        discovery["scopes_supported"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("openid".to_string()))
+    );
 }
 
 #[tokio::test]
@@ -512,9 +514,11 @@ async fn test_config_operations() {
     let client = config.get_client("test-client").unwrap();
     assert_eq!(client.client_id, "test-client");
     assert_eq!(client.client_secret, Some("test-secret".to_string()));
-    assert!(client
-        .redirect_uris
-        .contains(&"http://localhost:8080/callback".to_string()));
+    assert!(
+        client
+            .redirect_uris
+            .contains(&"http://localhost:8080/callback".to_string())
+    );
 
     // Test user lookup
     let user = config.get_user("testuser").unwrap();

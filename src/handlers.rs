@@ -429,29 +429,28 @@ async fn handle_authorization_code_grant(
     };
 
     // Validate client secret if provided
-    if let Some(provided_secret) = &token_request.client_secret {
-        if let Some(expected_secret) = &client.client_secret {
-            if provided_secret != expected_secret {
-                return Json(ErrorResponse {
-                    error: "invalid_client".to_string(),
-                    error_description: Some("Invalid client secret".to_string()),
-                    error_uri: None,
-                })
-                .into_response();
-            }
-        }
+    if let Some(provided_secret) = &token_request.client_secret
+        && let Some(expected_secret) = &client.client_secret
+        && provided_secret != expected_secret
+    {
+        return Json(ErrorResponse {
+            error: "invalid_client".to_string(),
+            error_description: Some("Invalid client secret".to_string()),
+            error_uri: None,
+        })
+        .into_response();
     }
 
     // Validate redirect URI
-    if let Some(redirect_uri) = &token_request.redirect_uri {
-        if redirect_uri != &auth_code.redirect_uri {
-            return Json(ErrorResponse {
-                error: "invalid_grant".to_string(),
-                error_description: Some("Redirect URI mismatch".to_string()),
-                error_uri: None,
-            })
-            .into_response();
-        }
+    if let Some(redirect_uri) = &token_request.redirect_uri
+        && redirect_uri != &auth_code.redirect_uri
+    {
+        return Json(ErrorResponse {
+            error: "invalid_grant".to_string(),
+            error_description: Some("Redirect URI mismatch".to_string()),
+            error_uri: None,
+        })
+        .into_response();
     }
 
     // Validate PKCE if code challenge was used
@@ -597,7 +596,6 @@ async fn handle_authorization_code_grant(
         scope: auth_code.scope,
     };
 
-    println!("foo {response:?}");
     Json(response).into_response()
 }
 
@@ -643,17 +641,16 @@ async fn handle_refresh_token_grant(
     };
 
     // Validate client secret if provided
-    if let Some(provided_secret) = &token_request.client_secret {
-        if let Some(expected_secret) = &client.client_secret {
-            if provided_secret != expected_secret {
-                return Json(ErrorResponse {
-                    error: "invalid_client".to_string(),
-                    error_description: Some("Invalid client secret".to_string()),
-                    error_uri: None,
-                })
-                .into_response();
-            }
-        }
+    if let Some(provided_secret) = &token_request.client_secret
+        && let Some(expected_secret) = &client.client_secret
+        && provided_secret != expected_secret
+    {
+        return Json(ErrorResponse {
+            error: "invalid_client".to_string(),
+            error_description: Some("Invalid client secret".to_string()),
+            error_uri: None,
+        })
+        .into_response();
     }
 
     // Get refresh token from storage
@@ -949,15 +946,14 @@ pub async fn logout(
     }
 
     // Check for Bearer token in Authorization header and revoke if present
-    if let Some(auth_header) = headers.get("authorization") {
-        if let Ok(header_str) = auth_header.to_str() {
-            if let Some(access_token) = header_str.strip_prefix("Bearer ") {
-                if let Err(e) = state.storage.revoke_access_token(access_token).await {
-                    warn!("Failed to revoke access token: {}", e);
-                } else {
-                    info!("Access token revoked during logout");
-                }
-            }
+    if let Some(auth_header) = headers.get("authorization")
+        && let Ok(header_str) = auth_header.to_str()
+        && let Some(access_token) = header_str.strip_prefix("Bearer ")
+    {
+        if let Err(e) = state.storage.revoke_access_token(access_token).await {
+            warn!("Failed to revoke access token: {}", e);
+        } else {
+            info!("Access token revoked during logout");
         }
     }
 

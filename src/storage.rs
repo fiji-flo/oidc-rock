@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -103,6 +103,7 @@ impl InMemoryStorage {
     }
 
     // Authorization code management
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_authorization_code(
         &self,
         client_id: &str,
