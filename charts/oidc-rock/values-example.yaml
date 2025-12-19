@@ -1,0 +1,277 @@
+# Example Values for OIDC Rock Helm Chart
+# =========================================
+# This file demonstrates common deployment scenarios with the auto-configuration features.
+#
+# KEY CONCEPT: Set app.baseUrl and the chart automatically configures ingress/httpRoute
+# to match, ensuring OIDC compliance.
+
+# ==============================================================================
+# Example 1: Production with Ingress (Recommended - Auto-Configured)
+# ==============================================================================
+# Just set baseUrl - ingress host, path, and TLS are auto-configured!
+#
+# app:
+#   baseUrl: "https://oidc.example.com"
+#
+# oidc:
+#   signing_key: "change-this-to-a-long-random-string-in-production"
+#
+# ingress:
+#   enabled: true
+#   className: "nginx"
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#   # No hosts or tls needed - auto-configured from baseUrl!
+#   # Automatically creates:
+#   #   - Host: oidc.example.com
+#   #   - Path: /
+#   #   - TLS: oidc-rock-tls secret
+#
+# clients:
+#   - client_id: "my-app"
+#     client_secret: "my-app-secret"
+#     client_name: "My Application"
+#     redirect_uris:
+#       - "https://myapp.example.com/auth/callback"
+#     response_types:
+#       - "code"
+#     grant_types:
+#       - "authorization_code"
+#       - "refresh_token"
+#     scopes:
+#       - "openid"
+#       - "profile"
+#       - "email"
+
+# ==============================================================================
+# Example 2: Production with Ingress + Path Prefix
+# ==============================================================================
+# OIDC provider at https://example.com/auth
+#
+# app:
+#   baseUrl: "https://example.com/auth"
+#
+# oidc:
+#   signing_key: "production-signing-key-change-me"
+#
+# ingress:
+#   enabled: true
+#   className: "nginx"
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#   # Automatically creates:
+#   #   - Host: example.com
+#   #   - Path: /auth
+#   #   - TLS: oidc-rock-tls secret
+
+# ==============================================================================
+# Example 3: Gateway API with HTTPRoute (Auto-Configured)
+# ==============================================================================
+#
+# app:
+#   baseUrl: "https://oidc.k8s.example.com"
+#
+# oidc:
+#   signing_key: "production-signing-key-change-me"
+#
+# httpRoute:
+#   enabled: true
+#   parentRefs:
+#     - name: my-gateway
+#       namespace: gateway-system
+#   # No hostnames or rules needed - auto-configured from baseUrl!
+#   # Automatically creates:
+#   #   - Hostname: oidc.k8s.example.com
+#   #   - Path: / (PathPrefix)
+
+# ==============================================================================
+# Example 4: Local Development (NodePort)
+# ==============================================================================
+#
+# app:
+#   baseUrl: "http://localhost:3080"
+#
+# service:
+#   type: NodePort
+#   port: 3080
+#
+# # No ingress needed for local development
+
+# ==============================================================================
+# Example 5: Manual Ingress Configuration (Advanced)
+# ==============================================================================
+# Override auto-configuration with explicit settings
+# WARNING: Ensure ingress config matches app.baseUrl for OIDC compliance!
+#
+# app:
+#   baseUrl: "https://oidc.example.com"
+#
+# ingress:
+#   enabled: true
+#   className: "nginx"
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#   hosts:
+#     - host: oidc.example.com  # MUST match baseUrl hostname
+#       paths:
+#         - path: /             # MUST match baseUrl path
+#           pathType: Prefix
+#   tls:
+#     - secretName: my-custom-tls-secret
+#       hosts:
+#         - oidc.example.com
+
+# ==============================================================================
+# Example 6: Custom Users and Token Settings
+# ==============================================================================
+#
+# app:
+#   baseUrl: "https://oidc.example.com"
+#
+# oidc:
+#   signing_key: "production-signing-key"
+#   token_expiry_seconds: 7200  # 2 hours
+#   supported_scopes:
+#     - "openid"
+#     - "profile"
+#     - "email"
+#     - "offline_access"
+#     - "admin"  # Custom scope
+#
+# users:
+#   - username: "admin"
+#     password: "admin123"
+#     email: "admin@example.com"
+#     name: "Admin User"
+#     given_name: "Admin"
+#     family_name: "User"
+#     claims:
+#       role: "admin"
+#       department: "IT"
+#
+#   - username: "user1"
+#     password: "password123"
+#     email: "user1@example.com"
+#     name: "Regular User"
+#     given_name: "Regular"
+#     family_name: "User"
+#     picture: "https://via.placeholder.com/150"
+#     claims:
+#       role: "user"
+#       department: "Engineering"
+#
+# clients:
+#   - client_id: "web-app"
+#     client_secret: "web-app-secret"
+#     client_name: "Web Application"
+#     redirect_uris:
+#       - "https://webapp.example.com/callback"
+#       - "https://webapp.example.com/auth/callback"
+#     response_types:
+#       - "code"
+#     grant_types:
+#       - "authorization_code"
+#       - "refresh_token"
+#     scopes:
+#       - "openid"
+#       - "profile"
+#       - "email"
+#       - "offline_access"
+
+# ==============================================================================
+# Example 7: Multiple Clients with Different Scopes
+# ==============================================================================
+#
+# app:
+#   baseUrl: "https://oidc.example.com"
+#
+# clients:
+#   # Public client (mobile app)
+#   - client_id: "mobile-app"
+#     client_secret: "mobile-secret"
+#     client_name: "Mobile Application"
+#     redirect_uris:
+#       - "com.example.mobileapp://callback"
+#     response_types:
+#       - "code"
+#     grant_types:
+#       - "authorization_code"
+#       - "refresh_token"
+#     scopes:
+#       - "openid"
+#       - "profile"
+#       - "offline_access"
+#
+#   # Admin client (admin dashboard)
+#   - client_id: "admin-dashboard"
+#     client_secret: "admin-secret"
+#     client_name: "Admin Dashboard"
+#     redirect_uris:
+#       - "https://admin.example.com/auth/callback"
+#     response_types:
+#       - "code"
+#     grant_types:
+#       - "authorization_code"
+#     scopes:
+#       - "openid"
+#       - "profile"
+#       - "email"
+#       - "admin"
+#
+#   # Testing client (localhost)
+#   - client_id: "test-client"
+#     client_secret: "test-secret"
+#     client_name: "Test Application"
+#     redirect_uris:
+#       - "http://localhost:8080/callback"
+#       - "http://127.0.0.1:8080/callback"
+#     response_types:
+#       - "code"
+#     grant_types:
+#       - "authorization_code"
+#       - "refresh_token"
+#     scopes:
+#       - "openid"
+#       - "profile"
+#       - "email"
+
+# ==============================================================================
+# Example 8: Resource Limits and Security Context
+# ==============================================================================
+#
+# app:
+#   baseUrl: "https://oidc.example.com"
+#
+# resources:
+#   limits:
+#     cpu: 200m
+#     memory: 256Mi
+#   requests:
+#     cpu: 100m
+#     memory: 128Mi
+#
+# securityContext:
+#   runAsNonRoot: true
+#   runAsUser: 1000
+#   readOnlyRootFilesystem: true
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop:
+#       - ALL
+#
+# podSecurityContext:
+#   fsGroup: 1000
+#   seccompProfile:
+#     type: RuntimeDefault
+
+# ==============================================================================
+# TIPS
+# ==============================================================================
+#
+# 1. Always set app.baseUrl to the external URL users will access
+# 2. Change oidc.signing_key in production (use a long random string)
+# 3. For OIDC compliance, ingress MUST route the exact baseUrl
+# 4. Auto-configuration handles this by default - only override if needed
+# 5. Test with: helm template ./charts/oidc-rock -f my-values.yaml
+# 6. Verify ConfigMap: kubectl get configmap oidc-rock -o yaml
