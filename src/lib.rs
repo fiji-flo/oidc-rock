@@ -7,7 +7,12 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 use tokio::time;
 use tower_http::cors::CorsLayer;
 use tracing::{error, info};
@@ -43,7 +48,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let state = AppState {
         storage: Arc::new(storage),
-        config: Arc::new(config),
+        config: Arc::new(config.clone()),
     };
 
     // Start cleanup task for expired tokens
@@ -79,7 +84,7 @@ pub async fn run() -> anyhow::Result<()> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3080));
+    let addr = SocketAddr::from((IpAddr::from_str(&config.server.host)?, config.server.port));
     info!("Starting OIDC provider on http://{}", addr);
     info!(
         "Discovery endpoint: http://{}/.well-known/openid-configuration",
