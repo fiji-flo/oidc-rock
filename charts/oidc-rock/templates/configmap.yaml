@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "oidc-rock.fullname" . }}
+  labels:
+    {{- include "oidc-rock.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      host: {{ .Values.app.host | quote }}
+      port: {{ .Values.app.port }}
+      base_url: {{ .Values.app.baseUrl | default (printf "http://%s:%d" .Values.app.host .Values.app.port) | quote }}
+
+    oidc:
+      issuer: {{ .Values.oidc.issuer | default .Values.app.baseUrl | default (printf "http://%s:%d" .Values.app.host .Values.app.port) | quote }}
+      signing_key: {{ .Values.oidc.signing_key | quote }}
+      token_expiry_seconds: {{ .Values.oidc.token_expiry_seconds }}
+      supported_scopes:
+        {{- range .Values.oidc.supported_scopes }}
+        - {{ . | quote }}
+        {{- end }}
+      supported_response_types:
+        {{- range .Values.oidc.supported_response_types }}
+        - {{ . | quote }}
+        {{- end }}
+      supported_grant_types:
+        {{- range .Values.oidc.supported_grant_types }}
+        - {{ . | quote }}
+        {{- end }}
+
+    users:
+      {{- toYaml .Values.users | nindent 6 }}
+
+    clients:
+      {{- toYaml .Values.clients | nindent 6 }}
