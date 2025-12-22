@@ -158,7 +158,9 @@ pub struct TokenRequest {
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
-    pub redirect_uri: Option<String>,
+    pub client_id: String,
+    pub redirect_uri: String,
+    pub scope: String,
     pub state: Option<String>,
     pub nonce: Option<String>,
     pub code_challenge: Option<String>,

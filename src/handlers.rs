@@ -299,23 +299,16 @@ pub async fn login(
         .into_response();
     }
 
-    // Extract parameters from the login request
-    let redirect_uri = login_request.redirect_uri.as_deref().unwrap_or_default();
-    let state_param = login_request.state.as_deref().unwrap_or_default();
-
-    // For simplicity, we'll extract these from form data (in a real implementation, you'd store them in session)
-    // This is a simplified approach for the test provider
-    let client_id = "test-client"; // In real implementation, get from session or form
-    let scope = "openid profile email";
+    let state_param = login_request.state.unwrap_or_default();
 
     // Create authorization code
     match state
         .storage
         .create_authorization_code(
-            client_id,
+            &login_request.client_id,
             &login_request.username,
-            redirect_uri,
-            scope,
+            &login_request.redirect_uri,
+            &login_request.scope,
             login_request.code_challenge.clone(),
             login_request.code_challenge_method.clone(),
             login_request.nonce.clone(),
@@ -329,11 +322,11 @@ pub async fn login(
             );
 
             let redirect_url = if state_param.is_empty() {
-                format!("{}?code={}", redirect_uri, auth_code.code)
+                format!("{}?code={}", login_request.redirect_uri, auth_code.code)
             } else {
                 format!(
                     "{}?code={}&state={}",
-                    redirect_uri, auth_code.code, state_param
+                    login_request.redirect_uri, auth_code.code, state_param
                 )
             };
 
