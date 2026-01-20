@@ -266,6 +266,33 @@
 #     type: RuntimeDefault
 
 # ==============================================================================
+# Example 9: Deployment Strategy for Zero-Downtime Updates
+# ==============================================================================
+# Control how Kubernetes replaces pods during updates
+#
+# app:
+#   baseUrl: "https://oidc.example.com"
+#
+# # Zero-downtime rolling update (recommended for production):
+# deploymentStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 1              # Allow 1 extra pod during update
+#     maxUnavailable: 0        # Ensure at least 1 pod always running
+#
+# # Fast rolling update (for non-critical environments):
+# deploymentStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 2              # Allow 2 extra pods during update
+#     maxUnavailable: 1        # Allow 1 pod to be unavailable
+#
+# # Recreate strategy (stops all pods before creating new ones):
+# # Use when you cannot run multiple versions simultaneously
+# deploymentStrategy:
+#   type: Recreate
+
+# ==============================================================================
 # TIPS
 # ==============================================================================
 #

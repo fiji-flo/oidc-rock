@@ -159,3 +159,27 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# Deployment strategy configuration
+# Controls how Kubernetes replaces old pods with new ones during updates
+# If not set, uses Kubernetes default (RollingUpdate with 25% maxSurge/maxUnavailable)
+deploymentStrategy: {}
+# Examples:
+#
+# Rolling update with zero downtime (recommended for production):
+# deploymentStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 1              # Allow 1 extra pod during update
+#     maxUnavailable: 0        # Ensure at least 1 pod always running
+#
+# Fast rolling update:
+# deploymentStrategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 2
+#     maxUnavailable: 1
+#
+# Recreate strategy (stops all pods before creating new ones):
+# deploymentStrategy:
+#   type: Recreate
