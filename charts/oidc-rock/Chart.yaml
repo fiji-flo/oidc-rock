@@ -2,5 +2,5 @@ apiVersion: v2
 name: oidc-rock
 description: A lightweight OpenID Connect (OIDC) provider for testing
 type: application
-version: 0.2.1
-appVersion: "v0.2.1"
+version: 0.2.2
+appVersion: "v0.2.2"
