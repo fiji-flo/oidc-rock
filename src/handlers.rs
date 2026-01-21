@@ -23,7 +23,7 @@ pub async fn index(State(state): State<AppState>) -> impl IntoResponse {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OIDC Rock - Test Provider</title>
+    <title>OIDC Rck - Test Provider</title>
     <style>
         body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
         .endpoint {{ background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }}

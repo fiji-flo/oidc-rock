@@ -3,4 +3,4 @@ name: oidc-rock
 description: A lightweight OpenID Connect (OIDC) provider for testing
 type: application
 version: 0.2.1
-appVersion: "v0.2.0"
+appVersion: "v0.2.1"
