@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   oidc-rock:
   - apiVersion: v2
+    appVersion: v0.2.2
+    created: "2026-01-21T23:32:04.228948088Z"
+    description: A lightweight OpenID Connect (OIDC) provider for testing
+    digest: 6ca84b7552bc04a6a62c2beed891571348487265852082fe1c9d0a9be2ec60a0
+    name: oidc-rock
+    type: application
+    urls:
+    - https://github.com/fiji-flo/oidc-rock/releases/download/oidc-rock-0.2.2/oidc-rock-0.2.2.tgz
+    version: 0.2.2
+  - apiVersion: v2
     appVersion: v0.2.0
     created: "2026-01-20T13:59:43.811024706Z"
     description: A lightweight OpenID Connect (OIDC) provider for testing
@@ -31,4 +41,4 @@ entries:
     urls:
     - https://github.com/fiji-flo/oidc-rock/releases/download/oidc-rock-0.1.0/oidc-rock-0.1.0.tgz
     version: 0.1.0
-generated: "2026-01-20T13:59:43.811045345Z"
+generated: "2026-01-21T23:32:04.228967234Z"
