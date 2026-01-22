@@ -62,9 +62,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ steps.meta.outputs.tags }}
-          cache-to: type=registry,ref=${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }},mode=max
 
   merge-multiarch-manifest:
     name: Merge and Push Multi-Arch OIC image
