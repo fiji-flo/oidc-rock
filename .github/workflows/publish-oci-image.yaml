@@ -66,13 +66,6 @@ jobs:
           cache-to: type=registry,ref=${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platform }}
 
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v3
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
-
   merge-multiarch-manifest:
     name: Merge and Push Multi-Arch OIC image
     runs-on: ubuntu-latest
