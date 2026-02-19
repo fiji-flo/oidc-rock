@@ -25,6 +25,15 @@ A lightweight OpenID Connect (OIDC) provider built with Rust and Axum, designed 
 
 ## Quick Start
 
+### 0. Generate Certs
+
+Install [mkcert](https://github.com/FiloSottile/mkcert) and then:
+
+```bash
+mkdir .mkcert
+mkcert -key-file ./mkcert/localhost.key.pem -cert-file ./mkcert/localhost/cert.pem localhost
+```
+
 ### 1. Build and Run
 
 ```bash
