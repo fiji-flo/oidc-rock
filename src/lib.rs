@@ -7,9 +7,9 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use axum_server::tls_rustls::RustlsConfig;
 use std::{
-    net::{IpAddr, SocketAddr},
-    str::FromStr,
+    net::{Ipv6Addr, SocketAddr},
     sync::Arc,
     time::Duration,
 };
@@ -32,6 +32,9 @@ pub struct AppState {
 }
 
 pub async fn run() -> anyhow::Result<()> {
+    // Initialize rustls crypto provider
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
@@ -75,6 +78,7 @@ pub async fn run() -> anyhow::Result<()> {
         // OIDC Core endpoints
         .route("/auth", get(handlers::authorize))
         .route("/token", post(handlers::token))
+        .route("/revoke", post(handlers::revoke))
         .route("/userinfo", get(handlers::userinfo))
         .route("/.well-known/jwks.json", get(handlers::jwks))
         // Custom endpoints for testing
@@ -82,17 +86,63 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/logout", post(handlers::logout))
         .route("/", get(handlers::index))
         .layer(CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state.clone());
 
-    let addr = SocketAddr::from((IpAddr::from_str(&config.server.host)?, config.server.port));
-    info!("Starting OIDC provider on http://{}", addr);
+    // Parse the host address
+    let addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, state.config.server.port));
+
+    // Determine protocol for logging
+    let protocol = if state
+        .config
+        .server
+        .tls
+        .as_ref()
+        .map(|t| t.enabled)
+        .unwrap_or(false)
+    {
+        "https"
+    } else {
+        "http"
+    };
+
+    info!("Starting OIDC provider on {}://{}", protocol, addr);
     info!(
-        "Discovery endpoint: http://{}/.well-known/openid-configuration",
-        addr
+        "Discovery endpoint: {}://{}/.well-known/openid-configuration",
+        protocol, addr
     );
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    // Check if TLS is enabled
+    if let Some(tls_config) = &state.config.server.tls {
+        if tls_config.enabled {
+            info!("Server listening on {} with TLS enabled", addr);
 
+            let rustls_config =
+                RustlsConfig::from_pem_file(&tls_config.cert_path, &tls_config.key_path).await?;
+
+            axum_server::bind_rustls(addr, rustls_config)
+                .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+        } else {
+            info!("Server listening on {} (TLS disabled)", addr);
+
+            let listener = tokio::net::TcpListener::bind(&addr).await?;
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await?;
+        }
+    } else {
+        info!("Server listening on {} (no TLS configuration)", addr);
+
+        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await?;
+    }
+
+    info!("Server shutdown complete");
     Ok(())
 }

@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use base64::{Engine, engine::general_purpose};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -121,7 +122,6 @@ pub fn verify_code_challenge(verifier: &str, challenge: &str, method: &str) -> b
 }
 
 pub fn generate_random_string(length: usize) -> String {
-    use rand::Rng;
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let mut rng = rand::rng();
 

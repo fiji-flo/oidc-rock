@@ -56,6 +56,7 @@ pub struct DiscoveryDocument {
     pub issuer: String,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
+    pub revocation_endpoint: String,
     pub userinfo_endpoint: String,
     pub jwks_uri: String,
     pub scopes_supported: Vec<String>,
@@ -165,4 +166,12 @@ pub struct LoginRequest {
     pub nonce: Option<String>,
     pub code_challenge: Option<String>,
     pub code_challenge_method: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RevokeRequest {
+    pub token: String,
+    pub token_type_hint: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
 }

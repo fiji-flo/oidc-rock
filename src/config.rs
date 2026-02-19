@@ -12,9 +12,17 @@ pub struct Config {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ServerConfig {
-    pub host: String,
     pub port: u16,
     pub base_url: String,
+    #[serde(default)]
+    pub tls: Option<TlsConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TlsConfig {
+    pub enabled: bool,
+    pub cert_path: String,
+    pub key_path: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -69,9 +77,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server: ServerConfig {
-                host: "127.0.0.1".to_string(),
                 port: 3080,
                 base_url: "http://127.0.0.1:3080".to_string(),
+                tls: None,
             },
             oidc: OidcConfig {
                 issuer: "http://127.0.0.1:3080".to_string(),

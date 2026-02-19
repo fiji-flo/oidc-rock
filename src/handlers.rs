@@ -4,6 +4,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json, Redirect},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use chrono::Utc;
 
 use std::collections::HashMap;
@@ -13,7 +14,7 @@ use crate::AppState;
 use crate::crypto::{JwtManager, verify_code_challenge};
 use crate::models::{
     AccessTokenClaims, AuthorizeRequest, DiscoveryDocument, ErrorResponse, IdTokenClaims,
-    LoginRequest, TokenRequest, TokenResponse, UserInfoResponse,
+    LoginRequest, RevokeRequest, TokenRequest, TokenResponse, UserInfoResponse,
 };
 
 // Index page - simple info about the OIDC provider
@@ -88,6 +89,7 @@ pub async fn discovery(State(state): State<AppState>) -> impl IntoResponse {
         issuer: state.config.oidc.issuer.clone(),
         authorization_endpoint: format!("{}/auth", base_url),
         token_endpoint: format!("{}/token", base_url),
+        revocation_endpoint: format!("{}/revoke", base_url),
         userinfo_endpoint: format!("{}/userinfo", base_url),
         jwks_uri: format!("{}/.well-known/jwks.json", base_url),
         scopes_supported: state.config.oidc.supported_scopes.clone(),
@@ -797,6 +799,127 @@ async fn handle_refresh_token_grant(
     };
 
     Json(response).into_response()
+}
+
+// Token revocation endpoint (RFC 7009)
+pub async fn revoke(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(revoke_request): Form<RevokeRequest>,
+) -> axum::response::Response {
+    info!("Token revocation request received");
+
+    // Extract client credentials from either form data or Basic Auth header
+    let (client_id, client_secret) = if let Some(id) = &revoke_request.client_id {
+        (id.clone(), revoke_request.client_secret.clone())
+    } else if let Some(auth_header) = headers.get("authorization") {
+        // Try to extract from Basic Auth
+        if let Ok(header_str) = auth_header.to_str() {
+            if let Some(basic_auth) = header_str.strip_prefix("Basic ") {
+                if let Ok(decoded) = BASE64.decode(basic_auth) {
+                    if let Ok(credentials) = String::from_utf8(decoded) {
+                        let parts: Vec<&str> = credentials.splitn(2, ':').collect();
+                        if parts.len() == 2 {
+                            (parts[0].to_string(), Some(parts[1].to_string()))
+                        } else {
+                            (String::new(), None)
+                        }
+                    } else {
+                        (String::new(), None)
+                    }
+                } else {
+                    (String::new(), None)
+                }
+            } else {
+                (String::new(), None)
+            }
+        } else {
+            (String::new(), None)
+        }
+    } else {
+        (String::new(), None)
+    };
+
+    // Validate client
+    let client = match state.config.get_client(&client_id) {
+        Some(client) => client,
+        None => {
+            warn!("Unknown client attempting revocation: {}", client_id);
+            return (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+                error: "invalid_client".to_string(),
+                error_description: Some("Unknown client".to_string()),
+                error_uri: None,
+            }))
+            .into_response();
+        }
+    };
+
+    // Validate client secret if the client has one configured
+    if let Some(expected_secret) = &client.client_secret {
+        match &client_secret {
+            Some(provided_secret) if provided_secret == expected_secret => {
+                // Valid secret
+            }
+            _ => {
+                warn!("Invalid client secret for client: {}", client_id);
+                return (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+                    error: "invalid_client".to_string(),
+                    error_description: Some("Invalid client credentials".to_string()),
+                    error_uri: None,
+                }))
+                .into_response();
+            }
+        }
+    }
+
+    // Attempt to revoke the token
+    // Per RFC 7009, we try to revoke based on token_type_hint first, then try the other type
+    let token = &revoke_request.token;
+    let hint = revoke_request.token_type_hint.as_deref();
+
+    let mut revoked = false;
+
+    // Try the hinted type first
+    match hint {
+        Some("refresh_token") => {
+            if let Ok(()) = state.storage.revoke_refresh_token(token).await {
+                info!("Refresh token revoked for client: {}", client_id);
+                revoked = true;
+            } else if let Ok(()) = state.storage.revoke_access_token(token).await {
+                info!("Access token revoked for client: {}", client_id);
+                revoked = true;
+            }
+        }
+        Some("access_token") | None => {
+            if let Ok(()) = state.storage.revoke_access_token(token).await {
+                info!("Access token revoked for client: {}", client_id);
+                revoked = true;
+            } else if let Ok(()) = state.storage.revoke_refresh_token(token).await {
+                info!("Refresh token revoked for client: {}", client_id);
+                revoked = true;
+            }
+        }
+        Some(unknown) => {
+            warn!("Unknown token_type_hint: {}", unknown);
+            // Still try to revoke
+            if let Ok(()) = state.storage.revoke_access_token(token).await {
+                info!("Access token revoked for client: {}", client_id);
+                revoked = true;
+            } else if let Ok(()) = state.storage.revoke_refresh_token(token).await {
+                info!("Refresh token revoked for client: {}", client_id);
+                revoked = true;
+            }
+        }
+    }
+
+    if !revoked {
+        info!("Token not found or already revoked for client: {}", client_id);
+    }
+
+    // Per RFC 7009: The authorization server responds with HTTP status code 200
+    // if the token has been revoked successfully or if the client submitted an
+    // invalid token (to prevent token scanning)
+    StatusCode::OK.into_response()
 }
 
 // UserInfo endpoint

@@ -4,13 +4,13 @@ use axum::{
     http::{Request, StatusCode},
 };
 use oidc_rock::{AppState, config::Config, storage::InMemoryStorage};
+use rand::RngExt;
 use serde_json::Value;
 use std::sync::Arc;
 use tower::util::ServiceExt;
 use tower_http::cors::CorsLayer;
 
 pub fn generate_code_verifier() -> String {
-    use rand::Rng;
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     let mut rng = rand::rng();
 
@@ -45,6 +45,7 @@ fn create_test_app() -> Router {
         )
         .route("/auth", axum::routing::get(oidc_rock::handlers::authorize))
         .route("/token", axum::routing::post(oidc_rock::handlers::token))
+        .route("/revoke", axum::routing::post(oidc_rock::handlers::revoke))
         .route(
             "/userinfo",
             axum::routing::get(oidc_rock::handlers::userinfo),
@@ -679,4 +680,268 @@ async fn test_discovery_includes_pkce_methods() {
         .unwrap();
     assert!(pkce_methods.contains(&Value::String("S256".to_string())));
     assert!(pkce_methods.contains(&Value::String("plain".to_string())));
+}
+
+// Test revocation endpoint - RFC 7009
+#[tokio::test]
+async fn test_revoke_endpoint_missing_client() {
+    let app = create_test_app();
+
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from("token=some-token"))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let error: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(error["error"], "invalid_client");
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_invalid_client() {
+    let app = create_test_app();
+
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "token=some-token&client_id=invalid-client&client_secret=wrong-secret",
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let error: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(error["error"], "invalid_client");
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_invalid_secret() {
+    let app = create_test_app();
+
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "token=some-token&client_id=test-client&client_secret=wrong-secret",
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let error: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(error["error"], "invalid_client");
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_valid_credentials_returns_ok() {
+    let app = create_test_app();
+
+    // Per RFC 7009, revocation endpoint should return 200 OK even for invalid tokens
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "token=non-existent-token&client_id=test-client&client_secret=test-secret",
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    // Should return 200 OK even though the token doesn't exist (prevents token scanning)
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_with_token_type_hint_access_token() {
+    let app = create_test_app();
+
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "token=some-access-token&token_type_hint=access_token&client_id=test-client&client_secret=test-secret",
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_with_token_type_hint_refresh_token() {
+    let app = create_test_app();
+
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "token=some-refresh-token&token_type_hint=refresh_token&client_id=test-client&client_secret=test-secret",
+        ))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_with_basic_auth() {
+    let app = create_test_app();
+
+    // Create Basic Auth header: base64("test-client:test-secret")
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    let credentials = "test-client:test-secret";
+    let encoded = BASE64.encode(credentials.as_bytes());
+    let auth_header = format!("Basic {}", encoded);
+
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .header("authorization", auth_header)
+        .body(Body::from("token=some-token"))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_revokes_actual_token() {
+    let config = Config::default();
+    let storage = Arc::new(InMemoryStorage::new(&config));
+
+    // Create an actual access token
+    let access_token = storage
+        .create_access_token("test-client", "testuser", "openid profile", 3600)
+        .await
+        .unwrap();
+
+    // Verify it's valid
+    assert!(storage.is_access_token_valid(&access_token.token).await);
+
+    // Create app with the same storage
+    let state = AppState {
+        storage: storage.clone(),
+        config: Arc::new(config),
+    };
+
+    let app = Router::new()
+        .route("/revoke", axum::routing::post(oidc_rock::handlers::revoke))
+        .layer(CorsLayer::permissive())
+        .with_state(state);
+
+    // Revoke the token
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(format!(
+            "token={}&client_id=test-client&client_secret=test-secret",
+            access_token.token
+        )))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Verify the token is now invalid
+    assert!(!storage.is_access_token_valid(&access_token.token).await);
+}
+
+#[tokio::test]
+async fn test_revoke_endpoint_revokes_refresh_token() {
+    let config = Config::default();
+    let storage = Arc::new(InMemoryStorage::new(&config));
+
+    // Create an actual refresh token
+    let refresh_token = storage
+        .create_refresh_token("test-client", "testuser", "openid profile")
+        .await
+        .unwrap();
+
+    // Verify it's valid
+    assert!(storage.is_refresh_token_valid(&refresh_token.token).await);
+
+    // Create app with the same storage
+    let state = AppState {
+        storage: storage.clone(),
+        config: Arc::new(config),
+    };
+
+    let app = Router::new()
+        .route("/revoke", axum::routing::post(oidc_rock::handlers::revoke))
+        .layer(CorsLayer::permissive())
+        .with_state(state);
+
+    // Revoke the token with hint
+    let request = Request::builder()
+        .uri("/revoke")
+        .method("POST")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(format!(
+            "token={}&token_type_hint=refresh_token&client_id=test-client&client_secret=test-secret",
+            refresh_token.token
+        )))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Verify the token is now invalid
+    assert!(!storage.is_refresh_token_valid(&refresh_token.token).await);
+}
+
+#[tokio::test]
+async fn test_discovery_includes_revocation_endpoint() {
+    let app = create_test_app();
+
+    let request = Request::builder()
+        .uri("/.well-known/openid-configuration")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let discovery: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        discovery["revocation_endpoint"],
+        "http://127.0.0.1:3080/revoke"
+    );
 }

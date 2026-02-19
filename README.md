@@ -10,6 +10,7 @@ A lightweight OpenID Connect (OIDC) provider built with Rust and Axum, designed 
 - ✅ JWT ID tokens and Access tokens with comprehensive claims
 - ✅ UserInfo endpoint with Bearer token authentication
 - ✅ Refresh Token grant implementation
+- ✅ Token Revocation endpoint (RFC 7009)
 - ✅ RP-Initiated Logout with session management
 - ✅ JWKS endpoint for key discovery
 - ✅ In-memory storage with automatic cleanup
@@ -18,6 +19,7 @@ A lightweight OpenID Connect (OIDC) provider built with Rust and Axum, designed 
 - ✅ Custom claims support
 - ✅ Simple web-based login interface with PKCE support
 - ✅ CORS support for SPA testing
+- ✅ Optional TLS/HTTPS support with rustls
 - ✅ Comprehensive test suite with 21 integration tests
 - ✅ PKCE helper utility for testing
 
@@ -53,7 +55,24 @@ server:
   host: "127.0.0.1"
   port: 3080
   base_url: "http://127.0.0.1:3080"
+  # Optional TLS configuration
+  tls:
+    enabled: true
+    cert_path: "certs/cert.pem"
+    key_path: "certs/key.pem"
 ```
+
+**TLS/HTTPS Support:**
+- Set `tls.enabled: true` to enable HTTPS
+- Provide paths to your certificate and private key files
+- If `tls` is omitted or `enabled: false`, the server runs on HTTP
+- For testing, you can generate self-signed certificates with:
+  ```bash
+  mkdir -p certs
+  openssl req -x509 -newkey rsa:4096 -nodes \
+    -keyout certs/key.pem -out certs/cert.pem \
+    -days 365 -subj "/CN=localhost"
+  ```
 
 ### OIDC Configuration
 
@@ -119,6 +138,7 @@ clients:
 | JWKS | `/.well-known/jwks.json` | JSON Web Key Set |
 | Authorization | `/auth` | Authorization endpoint with PKCE support |
 | Token | `/token` | Token exchange endpoint (authorization_code, refresh_token) |
+| Revoke | `/revoke` | Token revocation endpoint (RFC 7009) |
 | UserInfo | `/userinfo` | User information endpoint with Bearer auth |
 | Logout | `/logout` | RP-Initiated Logout endpoint |
 | Login | `/login` | Web login form with PKCE parameters |

@@ -1,12 +1,16 @@
 # OIDC Rock - Test OIDC Provider Configuration
 
 server:
-  host: "127.0.0.1"
   port: 3080
-  base_url: "http://127.0.0.1:3080"
+  base_url: "https://localhost:3080"
+  # Optional TLS configuration
+  tls:
+    enabled: true
+    cert_path: ./.mkcert/localhost.cert.pem
+    key_path: ./.mkcert/localhost.key.pem
 
 oidc:
-  issuer: "http://127.0.0.1:3080"
+  issuer: "https://localhost:3080/"
   signing_key: "your-secret-signing-key-change-this-in-production-make-it-long-and-random"
   token_expiry_seconds: 3600
   supported_scopes:
@@ -61,10 +65,12 @@ clients:
     client_secret: "test-secret"
     client_name: "Test Application"
     redirect_uris:
+      - "http://localhost:8000/sso/callback"
+      - "http://localhost:8000/api/console/sso/callback"
+      - "http://localhost:8000/api/browser/sso/callback"
       - "https://localhost:8000/sso/callback"
-      - "http://localhost:8080/callback"
-      - "http://localhost:8080/auth/callback"
-      - "http://127.0.0.1:8080/callback"
+      - "https://localhost:8000/api/console/sso/callback"
+      - "https://localhost:8000/api/browser/sso/callback"
     response_types:
       - "code"
     grant_types:
